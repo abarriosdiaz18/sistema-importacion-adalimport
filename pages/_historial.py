@@ -294,21 +294,51 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
-# HEADER DE PÁGINA — Syne (display) + Inter (body) + DM Mono (eyebrow)
+# HEADER DE PÁGINA
 # ══════════════════════════════════════════════════════════════════════════════
-st.markdown("""
-<div style="margin-bottom:6px">
-  <span class="ada-eyebrow" style="color:var(--gold);">
-    📊 HISTORIAL · BASE DE DATOS PERMANENTE
-  </span>
+import os as _os_hist
+_use_sup_hist = False
+try:
+    _use_sup_hist = str(st.secrets.get("general", {}).get("USE_SUPABASE", "false")).lower() == "true"
+except Exception:
+    _use_sup_hist = _os_hist.getenv("USE_SUPABASE", "false").lower() == "true"
+
+_hist_bd_icon  = "🟢" if _use_sup_hist else "🟡"
+_hist_bd_label = "Supabase · PostgreSQL" if _use_sup_hist else "SQLite · Local"
+_hist_bd_color = "#00E676" if _use_sup_hist else "#B8963E"
+_hist_bd_bg    = "rgba(0,230,118,0.08)" if _use_sup_hist else "rgba(184,150,62,0.08)"
+_hist_bd_bord  = "rgba(0,230,118,0.25)" if _use_sup_hist else "rgba(184,150,62,0.25)"
+
+st.markdown(f"""
+<div style="background:linear-gradient(135deg,rgba(13,20,36,0.9) 0%,rgba(5,9,15,0.95) 100%);
+            border:1px solid rgba(184,150,62,0.2);border-top:2px solid var(--gold);
+            border-radius:14px;padding:20px 24px;margin-bottom:24px;
+            display:flex;align-items:center;gap:16px;">
+  <span style="font-size:2rem;line-height:1;filter:drop-shadow(0 0 10px rgba(184,150,62,0.4));">📊</span>
+  <div style="flex:1">
+    <div style="font-family:'DM Mono',monospace;font-size:0.58rem;letter-spacing:3px;
+                text-transform:uppercase;color:var(--gold);margin-bottom:4px;">
+      Historial · Base de Datos Permanente
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;
+                color:var(--text);line-height:1.1;margin-bottom:4px;">
+      Lotes <span style="color:var(--gold);">Archivados</span>
+    </div>
+    <div style="font-family:'Inter',sans-serif;font-size:0.82rem;color:var(--muted);">
+      Métricas consolidadas de todos los lotes aprobados permanentemente
+    </div>
+  </div>
+  <div style="background:{_hist_bd_bg};border:1px solid {_hist_bd_bord};
+              border-radius:8px;padding:8px 16px;text-align:center;white-space:nowrap;flex-shrink:0;">
+    <span style="font-family:'DM Mono',monospace;font-size:0.55rem;letter-spacing:2px;
+                 text-transform:uppercase;color:{_hist_bd_color};display:block;margin-bottom:2px;">
+      ◈ Base de datos
+    </span>
+    <span style="font-family:'DM Mono',monospace;font-size:0.75rem;font-weight:600;color:{_hist_bd_color};">
+      {_hist_bd_icon} {_hist_bd_label}
+    </span>
+  </div>
 </div>
-<h2 class="ada-subtitle-white" style="margin:4px 0 4px;">
-  Lotes Archivados
-</h2>
-<p style="font-family:var(--font-body);font-weight:400;font-size:0.82rem;
-          color:var(--muted);margin:0 0 24px;">
-  Métricas consolidadas de todos los lotes aprobados · SQLite local persistente
-</p>
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════

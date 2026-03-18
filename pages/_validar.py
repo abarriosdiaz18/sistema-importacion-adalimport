@@ -1,7 +1,33 @@
 import streamlit as st
 import requests
+import os as _os_val
 from config_envios import COMISION_ML
 import config_envios as cfg
+from styles_adalimport import aplicar_estilos
+aplicar_estilos()
+
+# ── Hero Header ───────────────────────────────────────────────────────────────
+st.markdown("""
+<div style="background:linear-gradient(135deg,rgba(13,20,36,0.9) 0%,rgba(5,9,15,0.95) 100%);
+            border:1px solid rgba(184,150,62,0.2);border-top:2px solid var(--gold);
+            border-radius:14px;padding:20px 24px;margin-bottom:24px;
+            display:flex;align-items:center;gap:16px;">
+  <span style="font-size:2rem;line-height:1;filter:drop-shadow(0 0 10px rgba(0,230,118,0.4));">🔍</span>
+  <div style="flex:1">
+    <div style="font-family:'DM Mono',monospace;font-size:0.58rem;letter-spacing:3px;
+                text-transform:uppercase;color:var(--gold);margin-bottom:4px;">
+      Validar · Competencia MercadoLibre
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;
+                color:var(--text);line-height:1.1;margin-bottom:4px;">
+      Análisis de <span style="color:var(--neon);">Competitividad</span>
+    </div>
+    <div style="font-family:'Inter',sans-serif;font-size:0.82rem;color:var(--muted);">
+      Compara tu precio ML calculado contra la competencia real en el mercado
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown('''
 <div style="background:#0D1A0D;border:1px solid #1a3a1a;border-radius:8px;padding:0.8rem 1.2rem;margin-bottom:1.2rem;font-size:0.82rem;color:#aaa;line-height:1.6">
