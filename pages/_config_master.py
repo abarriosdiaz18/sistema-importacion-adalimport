@@ -172,15 +172,50 @@ _tarifa_mar_rep     = max(_ss_ft3 * 1,  _ss_minm)
 # ══════════════════════════════════════════════════════════════════════════════
 #  HERO HEADER
 # ══════════════════════════════════════════════════════════════════════════════
+
+# ── Resolver backend de BD activo ─────────────────────────────────────────────
+import os as _os_cfg
+_use_supabase_cfg = False
+try:
+    _use_supabase_cfg = str(st.secrets.get("general", {}).get("USE_SUPABASE", "false")).lower() == "true"
+except Exception:
+    _use_supabase_cfg = _os_cfg.getenv("USE_SUPABASE", "false").lower() == "true"
+
+if _use_supabase_cfg:
+    _bd_badge_icon  = "🟢"
+    _bd_badge_label = "Supabase · PostgreSQL"
+    _bd_badge_color = "#00E676"
+    _bd_badge_bg    = "rgba(0,230,118,0.08)"
+    _bd_badge_bord  = "rgba(0,230,118,0.25)"
+else:
+    _bd_badge_icon  = "🟡"
+    _bd_badge_label = "SQLite · Local"
+    _bd_badge_color = "#B8963E"
+    _bd_badge_bg    = "rgba(184,150,62,0.08)"
+    _bd_badge_bord  = "rgba(184,150,62,0.25)"
+
 st.markdown(f"""
 <div class="cfg-hero">
   <span class="cfg-hero-icon">⚙️</span>
-  <div>
+  <div style="flex:1">
     <p class="cfg-hero-title">CONFIGURACIÓN MAESTRA</p>
     <p class="cfg-hero-sub">
       Courier activo: <span style="color:#B8963E;font-weight:700">{_courier_activo}</span>
       &nbsp;·&nbsp; Reglas de negocio editables y guardadas permanentemente
     </p>
+  </div>
+  <div style="background:{_bd_badge_bg};border:1px solid {_bd_badge_bord};
+              border-radius:8px;padding:6px 14px;text-align:center;
+              white-space:nowrap;flex-shrink:0;">
+    <span style="font-family:'DM Mono',monospace;font-size:0.55rem;
+                 letter-spacing:2px;text-transform:uppercase;
+                 color:{_bd_badge_color};display:block;margin-bottom:2px;">
+      ◈ Base de datos
+    </span>
+    <span style="font-family:'DM Mono',monospace;font-size:0.75rem;
+                 font-weight:600;color:{_bd_badge_color};">
+      {_bd_badge_icon} {_bd_badge_label}
+    </span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -624,12 +659,13 @@ with _ba3:
         st.rerun()
 
 # ── Nota técnica ──────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <div style="margin-top:1.4rem;background:#070d1a;border:1px solid #0f1829;
             border-radius:8px;padding:0.8rem 1.2rem;font-size:0.68rem;
             color:#374151;font-family:'DM Mono',monospace;line-height:1.7">
   <b style="color:#B8963E">ℹ️ NOTA TÉCNICA</b> — Los cambios aplicados aquí se guardan
-  en la base de datos (SQLite) y persisten permanentemente, sobreescribiendo
+  en la base de datos (<span style="color:{_bd_badge_color}">{_bd_badge_icon} {_bd_badge_label}</span>)
+  y persisten permanentemente, sobreescribiendo
   a <code style="color:#B8963E">config_envios.py</code>.
 </div>
 """, unsafe_allow_html=True)

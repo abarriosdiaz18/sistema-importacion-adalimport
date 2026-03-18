@@ -24,9 +24,36 @@ _os.chdir(_ROOT)
 _builtins._ADALIMPORT_ROOT   = _ROOT
 _builtins._ADALIMPORT_DB_DIR = _DB_DIR
 
+# ── Flag USE_SUPABASE ─────────────────────────────────────────────────────────
+# Controla qué backend de BD usa toda la app.
+# · False (default) → SQLite local vía db_manager.py      (desarrollo sin internet)
+# · True            → Supabase PostgreSQL vía db_supabase.py (staging / producción)
+#
+# Cómo activarlo:
+#   · Local:            añade USE_SUPABASE = "true" en secrets.toml  → [general]
+#   · Streamlit Cloud:  añade USE_SUPABASE = "true" en Secrets del proyecto
+#   · Fallback:         variable de entorno USE_SUPABASE=true
+# ─────────────────────────────────────────────────────────────────────────────
+def _resolver_use_supabase() -> bool:
+    try:
+        import streamlit as _st
+        val = _st.secrets.get("general", {}).get("USE_SUPABASE", "false")
+        return str(val).lower() == "true"
+    except Exception:
+        pass
+    return _os.getenv("USE_SUPABASE", "false").lower() == "true"
+
+_USE_SUPABASE = _resolver_use_supabase()
+
 # Capa 4: sys.modules — pre-carga con directorio correcto por módulo
+# Si USE_SUPABASE=true, db_supabase se registra bajo el nombre "db_manager"
+# para que todas las páginas que hacen `from db_manager import ...`
+# reciban automáticamente la implementación Supabase. 0 cambios en páginas.
+_DB_MOD_NAME = "db_supabase" if _USE_SUPABASE else "db_manager"
+_DB_MOD_DIR  = _DB_DIR
+
 _CORE_MODULES = [
-    ("db_manager",              _DB_DIR),
+    (_DB_MOD_NAME,              _DB_MOD_DIR),
     ("calculadora_importacion", _ROOT),
     ("config_envios",           _ROOT),
     ("exportador_reportes",     _ROOT),
@@ -38,7 +65,11 @@ for _mod_name, _mod_dir in _CORE_MODULES:
         if _mod_dir not in sys.path:
             sys.path.insert(0, _mod_dir)
         try:
-            sys.modules[_mod_name] = _importlib.import_module(_mod_name)
+            _mod_obj = _importlib.import_module(_mod_name)
+            sys.modules[_mod_name] = _mod_obj
+            # Alias: si usamos Supabase, registrarlo también como "db_manager"
+            if _USE_SUPABASE and _mod_name == "db_supabase":
+                sys.modules["db_manager"] = _mod_obj
         except Exception as _e:
             import warnings
             warnings.warn(f"ADALIMPORT pre-load '{_mod_name}': {_e}")
@@ -222,6 +253,28 @@ with st.sidebar:
     )
 
     # ── Acceso a Configuración Maestra ───────────────────────────────────────
+    st.markdown("---")
+
+    # ── Backend de BD activo ──────────────────────────────────────────────────
+    if _USE_SUPABASE:
+        st.markdown(
+            '<div style="background:rgba(0,230,118,0.06);border:1px solid rgba(0,230,118,0.2);'
+            'border-radius:8px;padding:6px 12px;font-size:0.72rem;color:rgba(0,230,118,0.8);'
+            'font-family:\'DM Mono\',monospace;text-align:center;">'
+            '🟢 BD · Supabase (PostgreSQL)'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div style="background:rgba(184,150,62,0.05);border:1px solid rgba(184,150,62,0.15);'
+            'border-radius:8px;padding:6px 12px;font-size:0.72rem;color:rgba(184,150,62,0.6);'
+            'font-family:\'DM Mono\',monospace;text-align:center;">'
+            '🟡 BD · SQLite (local)'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
     st.markdown("---")
 
     _cfg_pendientes = st.session_state.get("cfg_cambios_pendientes", False)

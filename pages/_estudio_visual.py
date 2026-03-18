@@ -187,13 +187,25 @@ st.markdown("""
 # HEADER DE PÁGINA
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
-<div class="ev-page-header">
-  <div class="ev-eyebrow">🎨 PUBLICACIONES · ESTUDIO VISUAL</div>
-  <h1 class="ev-page-title">Estudio <span>Visual</span></h1>
-  <p class="ev-page-desc">
-    Genera imágenes de catálogo (ML) e imágenes con branding (Instagram Post / Story).
-    Las imágenes ML se suben automáticamente a Supabase y su URL queda vinculada al Excel de importación.
-  </p>
+<div style="background:linear-gradient(135deg,rgba(13,20,36,0.9) 0%,rgba(5,9,15,0.95) 100%);
+            border:1px solid rgba(184,150,62,0.2);border-top:2px solid var(--gold);
+            border-radius:14px;padding:20px 24px;margin-bottom:24px;
+            display:flex;align-items:center;gap:16px;">
+  <span style="font-size:2rem;line-height:1;filter:drop-shadow(0 0 10px rgba(184,150,62,0.4));">🎨</span>
+  <div style="flex:1">
+    <div style="font-family:'DM Mono',monospace;font-size:0.58rem;letter-spacing:3px;
+                text-transform:uppercase;color:var(--gold);margin-bottom:4px;">
+      Publicaciones · Estudio Visual
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;
+                color:var(--text);line-height:1.1;margin-bottom:4px;">
+      Estudio <span style="color:var(--gold);">Visual</span>
+    </div>
+    <div style="font-family:'Inter',sans-serif;font-size:0.82rem;color:var(--muted);">
+      Genera imágenes de catálogo (ML) e imágenes con branding (Instagram Post / Story).
+      Las imágenes ML se suben automáticamente a Supabase.
+    </div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
