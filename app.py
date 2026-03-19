@@ -86,6 +86,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📊 Analítica")
+# RECUERDA: Cambia el enlace de abajo por la URL real de tu dashboard en Vercel
+st.sidebar.link_button("Ir al Dashboard (Vercel)", "https://adalimport-web.vercel.app/admin/dashboard", use_container_width=True)
+st.sidebar.markdown("---")
+
 aplicar_estilos()
 
 # ── Cargar configuración desde BD en el inicio de la sesión ──────────
