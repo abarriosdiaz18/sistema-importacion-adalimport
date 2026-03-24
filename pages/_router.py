@@ -39,6 +39,7 @@ _LOTE_KEYS = [
     "resultados_lote", "_lote_env_total", "_lote_costo_total",
     "_lote_ganancia",  "_lote_modo",      "_lote_origen",
     "_lote_aprobado",  "_estado_apr",     "_lote_id_reg",
+    "lote_id",
     "_modo_activo_prev",
 ]
 

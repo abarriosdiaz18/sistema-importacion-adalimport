@@ -14,41 +14,38 @@ if _MODULES_DIR not in sys.path:
 import streamlit as st
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  ADALIMPORT — pages/_paso1_lote.py  (Paso 1 del Pipeline Wizard)
-#  Versión: refactor de _lote.py con barra de progreso wizard integrada.
+#  ADALIMPORT — pages/_paso1_lote.py  ·  v1.2  (Paso 1 del Pipeline Wizard)
+# ──────────────────────────────────────────────────────────────────────────────
+#  v1.2 — SIMPLIFICACIÓN:
+#    · Parche de rutas legacy ELIMINADO. Ya no es necesario porque
+#      _lote_aprobacion.py v1.1 navega directamente a "paso2", "paso4" y "paso1".
+#    · asegurar_lote_id() se mantiene como safety net para flujos externos
+#      (carga desde historial, navegación directa a paso1).
+#    · Código POST-RENDER simplificado a solo 2 safety nets de estado.
 #
 #  Responsabilidad única: orquestar los 3 submódulos del lote en orden,
 #  precedidos por la barra wizard del pipeline.
-#
-#  Submódulos (sin cambios):
-#    · _lote_formulario.py  → modo/origen, carga catálogo, formulario manual
-#    · _lote_resultados.py  → análisis, KPIs, tabla, decisión maestra
-#    · _lote_aprobacion.py  → aprobación, guardado BD, PDF, navegación
-#
-#  CAMBIOS respecto a _lote.py:
-#    1. Agrega render_wizard_nav(paso_actual=1) al inicio del contenido.
-#    2. Los botones de navegación en _lote_aprobacion usan rutas del wizard:
-#       "paso2" (antes "estudio_visual") y "paso4" (antes "publicaciones").
-#       ⚠️  Esto se controla desde _lote_aprobacion.py mediante la clave
-#       "pagina_activa". El presente archivo NO modifica _lote_aprobacion.py.
-#       Parche de rutas aplicado debajo via session_state post-render.
-#    3. Al aprobar, deposita "lote_id" en session_state (clave del contrato).
-#
-#  Reglas de negocio: calculadora_importacion.py — NO SE MODIFICA.
 #  Comunicación: EXCLUSIVAMENTE via st.session_state.
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ── Importar componente wizard ────────────────────────────────────────────────
-# Paso 1 no tiene prerequisitos → no necesita guard_prerequisito()
 try:
-    from modules._wizard_nav import render_wizard_nav
+    from modules._wizard_nav      import render_wizard_nav
+    from modules._estado_pipeline import asegurar_lote_id
     _WIZARD_OK = True
 except ImportError:
     _WIZARD_OK = False
     def render_wizard_nav(paso_actual: int) -> None:
-        pass  # fallback silencioso si modules/ no está instalado aún
+        pass
+    def asegurar_lote_id() -> bool:
+        import streamlit as _st
+        _id = _st.session_state.get("_lote_id_reg", "")
+        if _id:
+            _st.session_state["lote_id"] = _id
+            return True
+        return False
 
-# ── Importar submódulos del lote (igual que _lote.py) ────────────────────────
+# ── Importar submódulos del lote ──────────────────────────────────────────────
 from _lote_formulario  import render_formulario
 from _lote_resultados  import render_resultados
 from _lote_aprobacion  import render_aprobacion
@@ -70,23 +67,20 @@ if st.session_state.get("productos"):
 if st.session_state.get("resultados_lote"):
     render_aprobacion(_fn_reset)
 
-# ── Parche de rutas wizard post-aprobación ────────────────────────────────────
-# _lote_aprobacion.py navega a "publicaciones" y "estudio_visual" (rutas legacy).
-# Aquí interceptamos esas rutas y las redirigimos a las rutas del pipeline wizard.
-# Esto garantiza compatibilidad sin modificar _lote_aprobacion.py.
-_pagina_destino = st.session_state.get("pagina_activa", "")
-if _pagina_destino == "estudio_visual":
-    st.session_state["pagina_activa"] = "paso2"
-    st.rerun()
-elif _pagina_destino == "publicaciones":
-    st.session_state["pagina_activa"] = "paso4"
-    st.rerun()
+# ══════════════════════════════════════════════════════════════════════════════
+# POST-RENDER: Safety nets de coherencia de estado
+# En el flujo normal (aprobacion v1.1) estos bloques no hacen nada.
+# Solo actúan si el usuario llega al Paso 1 desde un flujo externo.
+# ══════════════════════════════════════════════════════════════════════════════
 
-# ── Depositar "lote_id" en session_state (clave del contrato del pipeline) ───
-# _lote_aprobacion.py guarda el ID en "_lote_id_reg". Lo copiamos a "lote_id"
-# para que paso_habilitado(2), (3) y (4) funcionen correctamente.
-if st.session_state.get("_lote_id_reg") and not st.session_state.get("lote_id"):
-    st.session_state["lote_id"] = st.session_state["_lote_id_reg"]
+# Safety net 1: sincronizar lote_id si llegó por ruta externa sin clave canónica
+asegurar_lote_id()
+
+# Safety net 2: garantizar _lote_modo si solo existe dentro de lote_activo_marketing
+if not st.session_state.get("_lote_modo"):
+    _mkt = st.session_state.get("lote_activo_marketing", {})
+    if _mkt.get("modo"):
+        st.session_state["_lote_modo"] = _mkt["modo"]
 
 # ── Estado vacío ──────────────────────────────────────────────────────────────
 if not st.session_state.get("productos") and not st.session_state.get("resultados_lote"):
