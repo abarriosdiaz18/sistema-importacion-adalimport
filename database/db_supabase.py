@@ -10,10 +10,13 @@ Credenciales: se leen desde st.secrets["supabase"] con fallback a os.getenv()
   · secrets.toml (local/dev):    [supabase] url = "..." / key = "..."
   · Streamlit Cloud (producción): configurar en el panel Secrets del proyecto
 
-Tablas esperadas (ver migrate_to_supabase.sql):
-  · lotes
-  · items_lote
-  · configuracion_sistema
+Tablas en Supabase (schema public, prefijo import_):
+  · import_lotes              — resumen del lote (1 fila por aprobación)
+  · import_items_lote         — detalle de ítems (N filas por lote)
+  · import_configuracion      — configuración maestra del sistema
+
+NOTA: El prefijo "import_" aísla estas tablas del frontend Astro en el mismo
+      proyecto Supabase. NO usar nombres sin prefijo.
 ════════════════════════════════════════════════════════════════════════════════
 """
 
@@ -21,6 +24,12 @@ import os
 import json
 from datetime import date, datetime
 from typing import List, Dict, Any, Optional, Tuple
+
+# ── Nombres canónicos de tablas ────────────────────────────────────────────────
+# Definidos aquí para que un cambio futuro de prefijo sea en 1 sola línea.
+_T_LOTES   = "import_lotes"
+_T_ITEMS   = "import_items_lote"
+_T_CONFIG  = "import_configuracion"
 
 
 # ── Credenciales: st.secrets con fallback a os.getenv ────────────────────────
@@ -45,7 +54,7 @@ def _get_credentials() -> tuple:
 
 def _get_client():
     """Devuelve un cliente Supabase autenticado."""
-    from supabase import create_client, Client
+    from supabase import create_client
     url, key = _get_credentials()
     if not url or not key:
         raise RuntimeError(
@@ -61,14 +70,13 @@ def _get_client():
 
 def inicializar_db() -> None:
     """
-    En Supabase las tablas se crean via migrate_to_supabase.sql en el dashboard.
-    Esta función verifica conectividad y es un no-op si la conexión es exitosa.
-    Idempotente — se puede llamar en cada arranque sin riesgo.
+    Verifica conectividad con Supabase.
+    Las tablas se crean en el dashboard de Supabase — esta función es un no-op
+    si la conexión es exitosa. Idempotente — se puede llamar en cada arranque.
     """
     try:
         client = _get_client()
-        # Ping liviano: consulta vacía a lotes
-        client.table("lotes").select("id").limit(1).execute()
+        client.table(_T_LOTES).select("id").limit(1).execute()
     except Exception as e:
         import warnings
         warnings.warn(f"ADALIMPORT Supabase: No se pudo verificar conexión → {e}")
@@ -80,17 +88,16 @@ def get_connection():
 
 
 # ════════════════════════════════════════════════════════════════════════════════
-# PERSISTENCIA DE CONFIGURACIÓN MAESTRA
+# CONFIGURACIÓN MAESTRA
 # ════════════════════════════════════════════════════════════════════════════════
 
 def guardar_configuracion(config_dict: dict) -> bool:
-    """Guarda el diccionario de configuración en Supabase como JSON (upsert)."""
+    """Guarda el diccionario de configuración en import_configuracion (upsert)."""
     try:
         client = _get_client()
-        datos_str = json.dumps(config_dict)
-        client.table("configuracion_sistema").upsert({
+        client.table(_T_CONFIG).upsert({
             "id":             1,
-            "datos_json":     datos_str,
+            "datos_json":     json.dumps(config_dict),
             "actualizado_en": datetime.utcnow().isoformat(),
         }).execute()
         return True
@@ -101,11 +108,11 @@ def guardar_configuracion(config_dict: dict) -> bool:
 
 
 def cargar_configuracion() -> dict:
-    """Carga y devuelve el diccionario de configuración desde Supabase."""
+    """Carga y devuelve el diccionario de configuración desde import_configuracion."""
     try:
-        client  = _get_client()
-        resp    = client.table("configuracion_sistema").select("datos_json").eq("id", 1).execute()
-        rows    = resp.data
+        client = _get_client()
+        resp   = client.table(_T_CONFIG).select("datos_json").eq("id", 1).execute()
+        rows   = resp.data
         if rows and rows[0].get("datos_json"):
             return json.loads(rows[0]["datos_json"])
         return {}
@@ -134,7 +141,7 @@ def guardar_lote_aprobado(
 ) -> Tuple[bool, str]:
     """
     Guarda el lote completo en Supabase.
-    Inserta primero en 'lotes' y luego los ítems en 'items_lote' usando el id retornado.
+    Inserta primero en import_lotes y luego los ítems en import_items_lote.
     """
     modo_norm = "Aéreo" if modo.lower() in ("aereo", "aéreo", "aero") else "Marítimo"
     roi_calc  = roi if roi is not None else (
@@ -146,7 +153,7 @@ def guardar_lote_aprobado(
         client = _get_client()
 
         # ── 1. Insertar cabecera del lote ──────────────────────────────────────
-        resp_lote = client.table("lotes").insert({
+        resp_lote = client.table(_T_LOTES).insert({
             "lote_id_text":    lote_id_text,
             "fecha":           fecha.isoformat() if isinstance(fecha, date) else str(fecha),
             "courier":         courier or "",
@@ -166,20 +173,20 @@ def guardar_lote_aprobado(
         items_payload = []
         for item in resultados:
             items_payload.append({
-                "lote_id_ref":     lote_pk,
-                "nombre":          str(item.get("nombre", "")).strip(),
-                "cantidad":        int(item.get("cantidad", 1)),
-                "tienda":          str(item.get("tienda", "")),
-                "costo_unitario":  round(float(item.get("precio_tienda")   or item.get("costo_unitario",  0)), 2),
-                "flete_individual":round(float(item.get("envio_courier")   or item.get("flete_individual",0)), 2),
-                "costo_real":      round(float(item.get("costo_real",      0)), 2),
-                "precio_venta":    round(float(item.get("precio_ml_objetivo") or item.get("precio_venta", 0)), 2),
-                "ganancia_neta":   round(float(item.get("ganancia_objetivo")  or item.get("ganancia_neta",0)), 2),
-                "margen_pct":      round(float(item.get("margen_pct",      0)), 2),
+                "lote_id_ref":      lote_pk,
+                "nombre":           str(item.get("nombre", "")).strip(),
+                "cantidad":         int(item.get("cantidad", 1)),
+                "tienda":           str(item.get("tienda", "")),
+                "costo_unitario":   round(float(item.get("precio_tienda")    or item.get("costo_unitario",  0)), 2),
+                "flete_individual": round(float(item.get("envio_courier")    or item.get("flete_individual", 0)), 2),
+                "costo_real":       round(float(item.get("costo_real",       0)), 2),
+                "precio_venta":     round(float(item.get("precio_ml_objetivo") or item.get("precio_venta",  0)), 2),
+                "ganancia_neta":    round(float(item.get("ganancia_objetivo") or item.get("ganancia_neta",  0)), 2),
+                "margen_pct":       round(float(item.get("margen_pct",        0)), 2),
             })
 
         if items_payload:
-            client.table("items_lote").insert(items_payload).execute()
+            client.table(_T_ITEMS).insert(items_payload).execute()
 
         return True, lote_id_text
 
@@ -188,21 +195,19 @@ def guardar_lote_aprobado(
 
 
 # ════════════════════════════════════════════════════════════════════════════════
-# LECTURA — CONSULTAS PARA HISTORIAL / DASHBOARD
+# LECTURA — HISTORIAL Y DASHBOARD
 # ════════════════════════════════════════════════════════════════════════════════
 
 def obtener_todos_los_lotes() -> List[Dict]:
-    """Devuelve todos los lotes con conteo de ítems, ordenados por fecha desc."""
+    """Devuelve todos los lotes de import_lotes con conteo de ítems, orden desc."""
     try:
         client = _get_client()
-        # Traer lotes
-        resp   = client.table("lotes").select("*").order("fecha", desc=True).execute()
+        resp   = client.table(_T_LOTES).select("*").order("fecha", desc=True).execute()
         lotes  = resp.data or []
 
-        # Enriquecer con conteo de ítems
         for lote in lotes:
             resp_cnt = (
-                client.table("items_lote")
+                client.table(_T_ITEMS)
                 .select("id", count="exact")
                 .eq("lote_id_ref", lote["id"])
                 .execute()
@@ -217,11 +222,11 @@ def obtener_todos_los_lotes() -> List[Dict]:
 
 
 def obtener_lote_por_id(lote_id_text: str) -> Optional[Dict]:
-    """Devuelve el header del lote por su lote_id_text."""
+    """Devuelve el header del lote desde import_lotes por su lote_id_text."""
     try:
         client = _get_client()
         resp   = (
-            client.table("lotes")
+            client.table(_T_LOTES)
             .select("*")
             .eq("lote_id_text", lote_id_text)
             .order("id", desc=True)
@@ -237,15 +242,15 @@ def obtener_lote_por_id(lote_id_text: str) -> Optional[Dict]:
 
 
 def obtener_items_de_lote(lote_id_text: str) -> List[Dict]:
-    """Devuelve los ítems de un lote buscando primero el PK del lote."""
+    """Devuelve los ítems desde import_items_lote buscando por lote_id_text."""
     try:
         client    = _get_client()
         lote_data = obtener_lote_por_id(lote_id_text)
         if not lote_data:
             return []
-        lote_pk   = lote_data["id"]
-        resp      = (
-            client.table("items_lote")
+        lote_pk = lote_data["id"]
+        resp    = (
+            client.table(_T_ITEMS)
             .select("*")
             .eq("lote_id_ref", lote_pk)
             .order("id")
@@ -259,7 +264,11 @@ def obtener_items_de_lote(lote_id_text: str) -> List[Dict]:
 
 
 def obtener_items_por_lote(lote_id_text: str) -> List[Dict]:
-    """Alias enriquecido — devuelve ítems con claves duales para compatibilidad."""
+    """
+    Alias enriquecido de obtener_items_de_lote.
+    Devuelve ítems con claves duales para compatibilidad con _publicaciones.py
+    y el resto de páginas que usan nombres distintos para los mismos campos.
+    """
     items_raw = obtener_items_de_lote(lote_id_text)
     resultado = []
     for it in items_raw:
@@ -273,7 +282,7 @@ def obtener_items_por_lote(lote_id_text: str) -> List[Dict]:
             "precio_venta":       it.get("precio_venta", 0),
             "ganancia_neta":      it.get("ganancia_neta", 0),
             "margen_pct":         it.get("margen_pct", 0),
-            # Claves duales para compatibilidad con _publicaciones.py
+            # Claves duales para compatibilidad
             "precio_tienda":      it.get("costo_unitario", 0),
             "envio_courier":      it.get("flete_individual", 0),
             "precio_ml_objetivo": it.get("precio_venta", 0),
@@ -284,25 +293,25 @@ def obtener_items_por_lote(lote_id_text: str) -> List[Dict]:
 
 
 def obtener_estadisticas_globales() -> Dict:
-    """Calcula KPIs agregados desde Supabase."""
+    """Calcula KPIs agregados desde import_lotes e import_items_lote."""
     try:
         client = _get_client()
 
-        resp   = client.table("lotes").select(
+        resp  = client.table(_T_LOTES).select(
             "inversion_total, ganancia_total, roi, modo"
         ).execute()
-        lotes  = resp.data or []
+        lotes = resp.data or []
 
-        total_lotes       = len(lotes)
-        inversion_acum    = sum(float(l.get("inversion_total", 0)) for l in lotes)
-        ganancia_acum     = sum(float(l.get("ganancia_total",  0)) for l in lotes)
-        roi_vals          = [float(l.get("roi", 0)) for l in lotes if l.get("roi")]
-        roi_promedio      = round(sum(roi_vals) / len(roi_vals), 2) if roi_vals else 0.0
-        lotes_aereo       = sum(1 for l in lotes if l.get("modo") == "Aéreo")
-        lotes_maritimo    = sum(1 for l in lotes if l.get("modo") == "Marítimo")
+        total_lotes    = len(lotes)
+        inversion_acum = sum(float(l.get("inversion_total", 0)) for l in lotes)
+        ganancia_acum  = sum(float(l.get("ganancia_total",  0)) for l in lotes)
+        roi_vals       = [float(l.get("roi", 0)) for l in lotes if l.get("roi")]
+        roi_promedio   = round(sum(roi_vals) / len(roi_vals), 2) if roi_vals else 0.0
+        lotes_aereo    = sum(1 for l in lotes if l.get("modo") == "Aéreo")
+        lotes_maritimo = sum(1 for l in lotes if l.get("modo") == "Marítimo")
 
-        resp_items        = client.table("items_lote").select("cantidad").execute()
-        total_items       = sum(int(i.get("cantidad", 0)) for i in (resp_items.data or []))
+        resp_items = client.table(_T_ITEMS).select("cantidad").execute()
+        total_items = sum(int(i.get("cantidad", 0)) for i in (resp_items.data or []))
 
         return {
             "total_lotes":         total_lotes,
@@ -323,12 +332,16 @@ def obtener_estadisticas_globales() -> Dict:
         }
 
 
+# ════════════════════════════════════════════════════════════════════════════════
+# VALIDACIONES
+# ════════════════════════════════════════════════════════════════════════════════
+
 def lote_id_existe(lote_id_text: str) -> bool:
-    """Verifica si un lote_id_text ya existe en la BD."""
+    """Verifica si un lote_id_text ya existe en import_lotes."""
     try:
         client = _get_client()
         resp   = (
-            client.table("lotes")
+            client.table(_T_LOTES)
             .select("id", count="exact")
             .eq("lote_id_text", lote_id_text)
             .limit(1)
@@ -340,12 +353,15 @@ def lote_id_existe(lote_id_text: str) -> bool:
 
 
 def obtener_siguiente_id_lote(prefijo: str) -> str:
-    """Calcula el siguiente número correlativo para un prefijo dado (ej: 'AER' → '003')."""
+    """
+    Calcula el siguiente número correlativo para un prefijo dado.
+    Ej: prefijo='AER' → busca AER-001, AER-002... → retorna '003'
+    """
     patron = f"{prefijo.upper().strip()}-"
     try:
         client = _get_client()
         resp   = (
-            client.table("lotes")
+            client.table(_T_LOTES)
             .select("lote_id_text")
             .like("lote_id_text", f"{patron}%")
             .execute()

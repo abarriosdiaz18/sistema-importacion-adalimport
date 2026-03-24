@@ -218,13 +218,13 @@ with st.sidebar:
     st.markdown("**🛒 MercadoLibre**")
 
     # ── Sincronizar con _config_master (y la BD) ──────────
-    _cfg_comision = st.session_state.get("cfg_comision_ml", 11.0)
-    _cfg_ganancia = st.session_state.get("cfg_margen_gan",  35.0)
-    _cfg_capital  = st.session_state.get("cfg_capital",    150.0)
-    _cfg_tax_az   = st.session_state.get("cfg_tax_amazon",   7.0)
-    _cfg_tax_eb   = st.session_state.get("cfg_tax_ebay",     7.0)
-    _cfg_tax_wm   = st.session_state.get("cfg_tax_walmart",  7.0)
-    _cfg_env_eb   = st.session_state.get("cfg_env_ebay",     5.0)
+    _cfg_comision = float(st.session_state.get("cfg_comision_ml", 11.0))
+    _cfg_ganancia = float(st.session_state.get("cfg_margen_gan",  35.0))
+    _cfg_capital  = float(st.session_state.get("cfg_capital",    150.0))
+    _cfg_tax_az   = float(st.session_state.get("cfg_tax_amazon",   7.0))
+    _cfg_tax_eb   = float(st.session_state.get("cfg_tax_ebay",     7.0))
+    _cfg_tax_wm   = float(st.session_state.get("cfg_tax_walmart",  7.0))
+    _cfg_env_eb   = float(st.session_state.get("cfg_env_ebay",     5.0))
 
     comision    = st.number_input("Comisión ML (%)",    value=_cfg_comision,  step=0.5) / 100
     margen_gan  = st.number_input("Ganancia deseada (%)", value=_cfg_ganancia, step=1.0,
