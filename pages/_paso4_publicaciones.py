@@ -34,12 +34,13 @@ if _MODULES_DIR not in sys.path:
 # ── Componentes del wizard ────────────────────────────────────────────────────
 try:
     from modules._wizard_nav      import render_wizard_nav
-    from modules._estado_pipeline import marcar_copys_generados
+    from modules._estado_pipeline import marcar_copys_generados, resetear_pipeline
     _WIZARD_OK = True
 except ImportError:
     _WIZARD_OK = False
     def render_wizard_nav(paso_actual: int) -> None: pass
     def marcar_copys_generados() -> None: pass
+    def resetear_pipeline() -> None: pass
 
 # ── Design System ─────────────────────────────────────────────────────────────
 from styles_adalimport import aplicar_estilos
@@ -685,3 +686,139 @@ Generado por ADALIMPORT · Precio ML: ${_p["precio"]:.2f}
                 st.session_state["pub_modo_manual"] = False
                 st.session_state["pagina_activa"]   = "paso1"
                 st.rerun()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CIERRE DE CICLO — Bloque final del Pipeline
+# ──────────────────────────────────────────────────────────────────────────────
+# Aparece siempre al final del Paso 4, una vez que el paso está completado
+# (al menos un copy generado). Ofrece dos opciones:
+#   A) Nuevo lote completo  → limpia TODO y vuelve al Paso 1 desde cero
+#   B) Solo resetear wizard → limpia el progreso del pipeline pero mantiene
+#      los datos del catálogo y configuración
+# ══════════════════════════════════════════════════════════════════════════════
+if st.session_state.get("copys_generados_ok"):
+
+    st.markdown("<div style='height:2rem'></div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, rgba(5,9,15,0.98) 0%, rgba(13,20,36,0.95) 100%);
+        border: 1px solid rgba(184,150,62,0.25);
+        border-top: 2px solid #B8963E;
+        border-radius: 14px;
+        padding: 24px 28px;
+        margin-top: 8px;
+    ">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:6px;">
+            <span style="font-size:1.6rem; filter:drop-shadow(0 0 8px rgba(184,150,62,0.5));">🏁</span>
+            <div>
+                <div style="font-family:'DM Mono',monospace; font-size:0.58rem; letter-spacing:3px;
+                            text-transform:uppercase; color:#B8963E; margin-bottom:3px;">
+                    Pipeline completado
+                </div>
+                <div style="font-family:'Syne',sans-serif; font-size:1.15rem; font-weight:800;
+                            color:#e2e8f0; line-height:1.1;">
+                    ¿Qué hacemos ahora?
+                </div>
+            </div>
+        </div>
+        <div style="font-family:'Inter',sans-serif; font-size:0.80rem; color:#64748b;
+                    margin-top:6px; padding-left:44px;">
+            Los 4 pasos del lote están completos. Elige cómo continuar.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+
+    _cc1, _cc2 = st.columns(2)
+
+    with _cc1:
+        # Opción A — Nuevo lote completo (limpieza total)
+        st.markdown("""
+        <div style="background:rgba(0,230,118,0.05); border:1px solid rgba(0,230,118,0.2);
+                    border-radius:10px; padding:14px 16px; margin-bottom:10px; min-height:80px;">
+            <div style="font-family:'DM Mono',monospace; font-size:0.62rem; letter-spacing:2px;
+                        text-transform:uppercase; color:#00E676; margin-bottom:5px;">
+                ★  Comenzar desde cero
+            </div>
+            <div style="font-family:'Inter',sans-serif; font-size:0.78rem; color:#64748b;">
+                Limpia <strong style="color:#94a3b8;">todos</strong> los datos del lote,
+                imágenes, copys y catálogo. El sistema queda listo para un lote completamente nuevo.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button(
+            "➕  Nuevo Lote Completo",
+            key="cierre_btn_nuevo_lote",
+            use_container_width=True,
+            type="primary",
+        ):
+            # Limpieza completa via el router — igual que "Cargar Nuevo Lote"
+            # Limpiamos manualmente todas las claves conocidas del pipeline
+            _claves_limpiar = [
+                "lote_id", "_lote_id_reg", "_lote_aprobado", "_estado_apr",
+                "resultados_lote", "_lote_modo", "_lote_costo_total",
+                "_lote_ganancia", "_lote_env_total", "_lote_origen",
+                "lote_activo_marketing", "productos", "catalogo_df",
+                "excel_urls_imagenes", "excel_bytes_cms", "copys_generados_ok",
+                "ev_paso2_completado", "_zip_listo", "_zip_n_archivos",
+                "_pub_copy_ml", "_pub_copy_ig", "_pub_copy_wa",
+                "_reporte_resultados", "_reporte_modo", "_reporte_lote_id",
+                "_reporte_costo", "_reporte_ganancia", "_reporte_env",
+                "_wizard_nav_css_v20", "pub_modo_manual", "_llegada_pub",
+                "excel_lote_en_Estudio_Visual", "confirm_limpiar", "_cat_preview",
+            ]
+            for _k in _claves_limpiar:
+                st.session_state.pop(_k, None)
+            # Incrementar contador del uploader para forzar reset de file_uploader
+            st.session_state["_uploader_counter"] = (
+                st.session_state.get("_uploader_counter", 0) + 1
+            )
+            st.session_state["productos"]       = []
+            st.session_state["courier_sel"]     = None
+            st.session_state["pagina_activa"]   = "paso1"
+            st.rerun()
+
+    with _cc2:
+        # Opción B — Solo resetear el wizard (mantiene catálogo y config)
+        st.markdown("""
+        <div style="background:rgba(184,150,62,0.05); border:1px solid rgba(184,150,62,0.18);
+                    border-radius:10px; padding:14px 16px; margin-bottom:10px; min-height:80px;">
+            <div style="font-family:'DM Mono',monospace; font-size:0.62rem; letter-spacing:2px;
+                        text-transform:uppercase; color:#B8963E; margin-bottom:5px;">
+                Nuevo lote · mismo catálogo
+            </div>
+            <div style="font-family:'Inter',sans-serif; font-size:0.78rem; color:#64748b;">
+                Reinicia el pipeline (pasos 1-4) pero conserva el catálogo CSV y la
+                configuración de courier. Útil para procesar otro lote del mismo proveedor.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button(
+            "🔄  Nuevo Lote · Mismo Catálogo",
+            key="cierre_btn_resetear_wizard",
+            use_container_width=True,
+            type="secondary",
+        ):
+            # Limpieza parcial — solo datos del lote, no el catálogo
+            _claves_lote = [
+                "lote_id", "_lote_id_reg", "_lote_aprobado", "_estado_apr",
+                "resultados_lote", "_lote_modo", "_lote_costo_total",
+                "_lote_ganancia", "_lote_env_total", "_lote_origen",
+                "lote_activo_marketing", "productos",
+                "excel_urls_imagenes", "excel_bytes_cms", "copys_generados_ok",
+                "ev_paso2_completado", "_zip_listo", "_zip_n_archivos",
+                "_pub_copy_ml", "_pub_copy_ig", "_pub_copy_wa",
+                "_reporte_resultados", "_reporte_modo", "_reporte_lote_id",
+                "_reporte_costo", "_reporte_ganancia", "_reporte_env",
+                "_wizard_nav_css_v20", "pub_modo_manual", "_llegada_pub",
+                "excel_lote_en_Estudio_Visual", "_estado_apr",
+            ]
+            for _k in _claves_lote:
+                st.session_state.pop(_k, None)
+            st.session_state["productos"]     = []
+            st.session_state["pagina_activa"] = "paso1"
+            st.rerun()
+
+    st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)

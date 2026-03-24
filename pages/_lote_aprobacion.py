@@ -25,7 +25,18 @@ except ImportError:
     def obtener_siguiente_id_lote(prefijo: str) -> str: return "001"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MÓDULO: _lote_aprobacion
+# MÓDULO: _lote_aprobacion  ·  v1.1
+# ──────────────────────────────────────────────────────────────────────────────
+# v1.1 — CAMBIOS:
+#   · Rutas de navegación unificadas al pipeline wizard:
+#       "publicaciones" → "paso4"
+#       "estudio_visual" → "paso2"
+#       "lote"           → "paso1"
+#   · lote_id escrito directamente como clave canónica en session_state,
+#     además de mantener _lote_id_reg por compatibilidad con código legacy.
+#   · Eliminado el parche de rutas en _paso1_lote.py ya no es necesario
+#     para estos tres casos, aunque se mantiene como fallback de seguridad.
+#
 # Responsabilidad: flujo idle → form → done, guardado en BD, PDF, botones
 #                  de navegación a Marketing y Studio Visual.
 # Comunicación: SOLO via st.session_state
@@ -212,10 +223,13 @@ def render_aprobacion(_resetear_home_fn):
                         </div>
                     </div>""", unsafe_allow_html=True)
 
-                # ── Avanzar a "done" ──────────────────────────────────────────
-                st.session_state._estado_apr  = "done"
-                st.session_state._lote_id_reg = lote_id
-                st.session_state._lote_aprobado = True
+                # ── Avanzar a "done" — v1.1: lote_id como clave canónica ──────
+                # Se escribe lote_id directamente (clave canónica del pipeline).
+                # Se mantiene _lote_id_reg por compatibilidad con código legacy.
+                st.session_state["lote_id"]         = lote_id   # ← CANÓNICA v1.1
+                st.session_state["_lote_id_reg"]    = lote_id   # ← legacy (compatibilidad)
+                st.session_state._estado_apr        = "done"
+                st.session_state._lote_aprobado     = True
 
                 for _ck in ("_id_sugerido_cache_AER", "_id_sugerido_cache_MAR"):
                     st.session_state.pop(_ck, None)
@@ -388,7 +402,7 @@ def render_aprobacion(_resetear_home_fn):
         }
         </style>""", unsafe_allow_html=True)
 
-        # ── Botones Marketing + Studio ────────────────────────────────────────
+        # ── Botones Marketing + Studio — v1.1: rutas wizard ──────────────────
         _espacio1, _col_btn1, _col_btn2, _espacio2 = st.columns([1, 2, 2, 1])
 
         with _col_btn1:
@@ -404,7 +418,7 @@ def render_aprobacion(_resetear_home_fn):
                         "costo_total": _costo_r, "ganancia_total": _gan_r, "env_total": _env_r,
                     }
                 st.session_state["_llegada_pub"]  = True
-                st.session_state["pagina_activa"] = "publicaciones"
+                st.session_state["pagina_activa"] = "paso4"          # ← v1.1 (era "publicaciones")
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -419,7 +433,7 @@ def render_aprobacion(_resetear_home_fn):
                     "lote_id": _id_rep, "modo": _modo_rep, "resultados": _res_rep,
                     "costo_total": _costo_r, "ganancia_total": _gan_r, "env_total": _env_r,
                 }
-                st.session_state["pagina_activa"] = "estudio_visual"
+                st.session_state["pagina_activa"] = "paso2"          # ← v1.1 (era "estudio_visual")
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -456,7 +470,7 @@ def render_aprobacion(_resetear_home_fn):
                 help="Limpia TODOS los datos (incluyendo marketing) y vuelve al inicio",
             ):
                 _resetear_home_fn()
-                st.session_state["pagina_activa"] = "lote"
+                st.session_state["pagina_activa"] = "paso1"          # ← v1.1 (era "lote")
                 st.rerun()
 
         st.markdown("<br>", unsafe_allow_html=True)

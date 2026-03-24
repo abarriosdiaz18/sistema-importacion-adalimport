@@ -15,18 +15,16 @@ if _MODULES_DIR not in sys.path:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  ADALIMPORT — pages/_paso3_exportacion.py  ·  v1.0
+#  ADALIMPORT — pages/_paso3_exportacion.py  ·  v1.1
 #  Paso 3 del Pipeline Wizard — Exportación Excel para CMS Web
 #
-#  Responsabilidad:
-#    · Consolida los resultados del Paso 1 (cálculo) con las URLs del Paso 2
-#      (imágenes Supabase) y genera el Excel de importación masiva para el CMS.
-#    · Ofrece 2 tipos de descarga:
-#        A) Excel CMS Web  → generar_excel_importacion_web() — para Supabase/tienda
-#        B) Excel Reporte  → generar_excel_reporte()         — análisis financiero
-#    · Deposita "excel_bytes_cms" en session_state (contrato Paso 3).
+#  v1.1 — CAMBIOS:
+#    · Banner de imágenes faltantes mejorado: muestra la lista de productos
+#      sin URL, nivel de riesgo (color) y botón directo "← Ir al Paso 2".
+#    · El botón "Ir al Paso 2" solo aparece si el Paso 2 está habilitado
+#      (lote aprobado), evitando navegación rota.
+#    · Banner de éxito 100% imágenes con indicador verde neón.
 #
-#  ARCHIVO NUEVO — no reemplaza ningún existente.
 #  Módulos core: exportador_reportes.py — NO SE MODIFICA.
 #  Comunicación: EXCLUSIVAMENTE via st.session_state.
 # ══════════════════════════════════════════════════════════════════════════════
@@ -34,16 +32,17 @@ if _MODULES_DIR not in sys.path:
 # ── Componentes del wizard ────────────────────────────────────────────────────
 try:
     from modules._wizard_nav      import render_wizard_nav, guard_prerequisito
-    from modules._estado_pipeline import ESTADO_PASO
+    from modules._estado_pipeline import ESTADO_PASO, paso_habilitado
     _WIZARD_OK = True
 except ImportError:
     _WIZARD_OK = False
     def render_wizard_nav(paso_actual: int) -> None: pass
     def guard_prerequisito(n: int, pagina_retroceso: str = "paso1") -> bool: return True
-    class ESTADO_PASO: pass
+    def paso_habilitado(n: int) -> bool: return True
+    ESTADO_PASO = {}
 
 # ── Guard de prerequisito ─────────────────────────────────────────────────────
-# Paso 3 requiere: lote_id + resultados_lote
+# v1.1: Paso 3 requiere: lote_id + resultados_lote + _lote_modo (contrato v1.1)
 guard_prerequisito(3, pagina_retroceso="paso1")
 
 # ── Design System ─────────────────────────────────────────────────────────────
@@ -190,7 +189,7 @@ _k3.markdown(f"""
 </div>""", unsafe_allow_html=True)
 
 _k4.markdown(f"""
-<div style="background:var(--navy-md);border:1px solid rgba(184,150,62,0.18);
+<div style="background:var(--navy-md);border:1px solid rgba({'0,230,118' if _pct_url == 100 else '184,150,62'},0.18);
             border-top:2px solid {'var(--neon)' if _pct_url == 100 else 'var(--gold)'};
             border-radius:12px;padding:16px 14px;text-align:center;">
   <div style="font-family:'DM Mono',monospace;font-size:0.55rem;letter-spacing:2px;
@@ -204,6 +203,99 @@ _k4.markdown(f"""
 </div>""", unsafe_allow_html=True)
 
 st.markdown("<div style='height:1.4rem'></div>", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BANNER DE ESTADO DE IMÁGENES (v1.1 — reemplaza el aviso inline del expander)
+# ── Se muestra FUERA del expander para máxima visibilidad ─────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+_n_faltantes = _n_total - _n_con_url
+
+if _n_faltantes > 0:
+    # ── Calcular nivel de riesgo ──────────────────────────────────────────────
+    # Alto  (>50% sin URL): borde rojo, no bloquea pero advierte fuerte
+    # Medio (1-50% sin URL): borde oro, aviso suave
+    _riesgo_alto   = _pct_url < 50
+    _border_color  = "#ef4444" if _riesgo_alto else "#B8963E"
+    _bg_color      = "rgba(239,68,68,0.06)" if _riesgo_alto else "rgba(184,150,62,0.06)"
+    _icono         = "🔴" if _riesgo_alto else "⚠️"
+    _titulo        = f"{_icono} {_n_faltantes} producto(s) sin imagen vinculada"
+    _subtitulo     = (
+        "El Excel CMS se generará con celdas vacías en la columna <code>image</code>. "
+        "Esto puede causar errores en la carga masiva de la tienda." if _riesgo_alto
+        else
+        "El Excel se generará correctamente. Las celdas de imagen quedarán vacías "
+        "para los productos listados abajo."
+    )
+
+    # ── Lista de productos faltantes (máx 5 visibles) ─────────────────────────
+    _nombres_faltantes = [
+        r.get("nombre", "—")[:48]
+        for r in _resultados_enriquecidos
+        if not r.get("image_url") and not r.get("image")
+    ]
+    _items_html = "".join(
+        f'<span style="display:inline-block;background:rgba(255,255,255,0.05);'
+        f'border:1px solid rgba(255,255,255,0.08);border-radius:4px;'
+        f'padding:2px 8px;margin:2px 3px 2px 0;font-size:0.72rem;'
+        f'font-family:\'DM Mono\',monospace;color:#94a3b8;">{n}</span>'
+        for n in _nombres_faltantes[:5]
+    )
+    _mas_html = (
+        f'<span style="font-size:0.72rem;color:#64748b;font-family:\'Inter\',sans-serif;">'
+        f'  +{len(_nombres_faltantes) - 5} más...</span>'
+        if len(_nombres_faltantes) > 5 else ""
+    )
+
+    # ── Verificar si Paso 2 está habilitado para mostrar botón ────────────────
+    _paso2_ok = paso_habilitado(2)
+
+    st.markdown(f"""
+    <div style="background:{_bg_color};
+                border:1px solid {_border_color};
+                border-left:3px solid {_border_color};
+                border-radius:10px;
+                padding:14px 18px;
+                margin-bottom:18px;">
+        <div style="font-family:'Syne',sans-serif;font-size:0.92rem;font-weight:700;
+                    color:{'#fca5a5' if _riesgo_alto else '#B8963E'};margin-bottom:5px;">
+            {_titulo}
+        </div>
+        <div style="font-family:'Inter',sans-serif;font-size:0.78rem;color:#94a3b8;
+                    margin-bottom:10px;">{_subtitulo}</div>
+        <div style="margin-bottom:6px;">{_items_html}{_mas_html}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Botón de navegación al Paso 2 (solo si está habilitado) ──────────────
+    if _paso2_ok:
+        _b_col1, _b_col2, _b_col3 = st.columns([1, 2, 1])
+        with _b_col2:
+            if st.button(
+                "🎨  ← Ir al Paso 2 para procesar imágenes",
+                key="paso3_ir_paso2",
+                use_container_width=True,
+            ):
+                st.session_state["pagina_activa"] = "paso2"
+                st.rerun()
+        st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
+
+elif _n_total > 0:
+    # ── Todas las imágenes vinculadas — banner de éxito ───────────────────────
+    st.markdown(f"""
+    <div style="background:rgba(0,230,118,0.06);
+                border:1px solid rgba(0,230,118,0.3);
+                border-left:3px solid #00E676;
+                border-radius:10px;padding:12px 18px;margin-bottom:18px;
+                display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.2rem;">✅</span>
+        <div>
+            <span style="font-family:'Syne',sans-serif;font-size:0.88rem;font-weight:700;
+                         color:#00E676;">100% de imágenes vinculadas</span>
+            <span style="font-family:'Inter',sans-serif;font-size:0.78rem;color:#64748b;
+                         margin-left:8px;">— El Excel incluirá URLs para todos los {_n_total} productos.</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TABLA DE PREVIEW
@@ -238,17 +330,6 @@ with st.expander(f"👁️ Preview del Excel — {_n_total} producto(s)", expand
             "URL imagen": st.column_config.TextColumn(width="medium"),
         }
     )
-
-    if _n_con_url < _n_total:
-        _faltantes = [r.get("nombre", "")[:40] for r in _resultados_enriquecidos
-                      if not r.get("image_url") and not r.get("image")]
-        st.markdown(
-            f'<div style="font-family:\'Inter\',sans-serif;font-size:0.78rem;'
-            f'color:#B8963E;margin-top:6px;">'
-            f'⚠️ {_n_total - _n_con_url} producto(s) sin URL de imagen — '
-            f'puedes generar el Excel igualmente o volver al Paso 2 para procesarlas.'
-            f'</div>', unsafe_allow_html=True,
-        )
 
 st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 st.markdown('<hr style="border:none;border-top:1px solid #141e30;margin:0 0 1.4rem 0;">',
@@ -365,12 +446,12 @@ with _btn_c2:
         # Asegurar que lote_activo_marketing esté poblado para el Paso 4
         if not st.session_state.get("lote_activo_marketing"):
             st.session_state["lote_activo_marketing"] = {
-                "lote_id":      _lote_id,
-                "modo":         _modo,
-                "resultados":   _resultados_enriquecidos,
-                "costo_total":  _costo_total,
+                "lote_id":        _lote_id,
+                "modo":           _modo,
+                "resultados":     _resultados_enriquecidos,
+                "costo_total":    _costo_total,
                 "ganancia_total": _ganancia_total,
-                "env_total":    _env_total,
+                "env_total":      _env_total,
             }
         st.session_state["_llegada_pub"]  = True
         st.session_state["pagina_activa"] = "paso4"
