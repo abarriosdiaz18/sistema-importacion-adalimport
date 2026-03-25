@@ -239,14 +239,14 @@ with _col_usd:
     if st.button("⚡  Un Solo Dolar  →", key="courier_btn_usd",
                   type="primary", use_container_width=True):
         st.session_state["courier_sel"] = "Un Solo Dolar"
-        st.session_state["pagina_activa"] = "lote"
+        st.session_state["pagina_activa"] = "paso1"
         st.rerun()
 
 with _col_cp:
     if st.button("⚡  Me lo trae CP  →", key="courier_btn_cp",
                   type="primary", use_container_width=True):
         st.session_state["courier_sel"] = "Me lo trae CP"
-        st.session_state["pagina_activa"] = "lote"
+        st.session_state["pagina_activa"] = "paso1"
         st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)

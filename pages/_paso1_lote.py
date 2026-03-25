@@ -78,8 +78,8 @@ asegurar_lote_id()
 
 # Safety net 2: garantizar _lote_modo si solo existe dentro de lote_activo_marketing
 if not st.session_state.get("_lote_modo"):
-    _mkt = st.session_state.get("lote_activo_marketing", {})
-    if _mkt.get("modo"):
+    _mkt = st.session_state.get("lote_activo_marketing") or {}
+    if isinstance(_mkt, dict) and _mkt.get("modo"):
         st.session_state["_lote_modo"] = _mkt["modo"]
 
 # ── Estado vacío ──────────────────────────────────────────────────────────────
